@@ -41,6 +41,23 @@ cd RateMate
 go run .            # launches the TUI
 ```
 
+> **On Windows / behind the GFW, `go run .` will fail to download modules
+> from `proxy.golang.org`.** Use the included run script instead — it routes
+> module downloads through `goproxy.cn` for *that one `go run` invocation only*
+> and never pollutes your system environment. See
+> [§ Windows / China network](#windows--china-network) below.
+
+```bash
+# Linux / macOS
+./scripts/run.sh            # same as `go run .` but with a process-local GOPROXY
+
+# Windows (PowerShell)
+.\scripts\run.ps1           # or: scripts\run.cmd
+
+# pass subcommands through, e.g. headless serve:
+./scripts/run.sh serve -port 9090 -mode manual
+```
+
 Inside the TUI, press **`s`** to start the proxy (default `:8080`), then point
 your client at it:
 
@@ -213,20 +230,105 @@ through immediately; subsequent ones wait the full spacing.
 ## Makefile targets
 
 ```
-make run        Launch the TUI via `go run .`         (no binary produced)
-make serve      Run the proxy headless via `go run . serve`
+make run        Launch the TUI via the run script (auto GOPROXY, no binary)
+make serve      Run the proxy headless via the run script
 make build      Build an optimised binary into ./bin/
 make build-all  Cross-compile all 6 platform/arch combos into ./dist/
 make test       Run tests
 make vet        Run go vet
 make fmt        Format the code
 make install     Install to $GOPATH/bin
+make uninstall   Remove EVERY trace of RateMate from the system
+make uninstall-purge   Also wipe Go module/build cache entries
 make clean      Remove ./bin and ./dist
 make help       Show all targets
 ```
 
-No `make` on Windows? Every target maps directly to a `go` command — see the
-header comments in [`Makefile`](Makefile).
+No `make` on Windows? Use the scripts directly — `scripts\run.cmd`,
+`.\scripts\run.ps1`, `.\scripts\uninstall.ps1`. Every Makefile target maps to
+one of these scripts or a plain `go` command.
+
+---
+
+## Windows / China network
+
+`go run .` downloads Go modules from `proxy.golang.org`, which is unreachable
+behind the GFW. RateMate ships run scripts that fix this **without polluting
+your environment**: they set `GOPROXY=https://goproxy.cn,direct` for the
+*duration of that single `go run` invocation only* and restore the original
+value (or unset it) the instant `go run` exits.
+
+| Platform | Command |
+|----------|---------|
+| Linux / macOS | `./scripts/run.sh` |
+| Windows (PowerShell) | `.\scripts\run.ps1` |
+| Windows (cmd.exe) | `scripts\run.cmd` |
+
+Pass subcommands through just like `go run`:
+
+```bash
+./scripts/run.sh serve -port 9090 -mode manual
+scripts\run.cmd serve -port 9090 -mode manual
+```
+
+**Why not just `go env -w GOPROXY=...`?** Because that persists the change to
+`~/.config/go/env` (or `%USERPROFILE%\go\env` on Windows) and silently affects
+every other Go project on your machine. The run scripts leave your global Go
+config untouched.
+
+If you'd rather set it globally anyway, the equivalent is:
+
+```bash
+go env -w GOPROXY=https://goproxy.cn,direct      # persists, affects all projects
+go env -u GOPROXY                              # undo it later
+```
+
+---
+
+## Uninstall — root-and-branch
+
+RateMate is designed to leave *no* trace when you're done with it. The
+uninstall script removes every artifact it may have created:
+
+1. The config directory (`~/.ratemate` / `%USERPROFILE%\.ratemate`)
+2. The `go install`-ed binary (if any)
+3. In-repo build artifacts (`./bin`, `./dist`)
+4. Detection + one-click removal of `HTTPS_PROXY` / `HTTP_PROXY` env vars that
+   point at the local proxy
+5. *(optional `--purge`)* RateMate's entries in the Go module cache and the
+   build cache
+
+```bash
+# Linux / macOS
+./scripts/uninstall.sh              # standard root-and-branch removal
+./scripts/uninstall.sh --purge       # also wipe Go module/build cache
+./scripts/uninstall.sh --dry-run     # preview what would be removed
+
+# Windows (PowerShell)
+.\scripts\uninstall.ps1              # standard removal
+.\scripts\uninstall.ps1 -Purge       # also wipe Go caches
+.\scripts\uninstall.ps1 -DryRun      # preview
+
+# or via make
+make uninstall                       # standard
+make uninstall-purge                 # with --purge
+```
+
+The script is **idempotent** — safe to run repeatedly; each missing piece is
+reported `absent` rather than erroring.
+
+> ℹ️ `HTTPS_PROXY` / `HTTP_PROXY` live in your shell (or the registry on
+> Windows). The uninstall script *detects* them and on Windows offers to delete
+> the persistent (User-scope) ones for you; on Linux/macOS it prints the exact
+> `unset` command to run since a child process can't unset its parent's env.
+
+What the uninstaller deliberately does **not** touch:
+
+- Your Go installation
+- Other Go projects' module-cache entries (unless `--purge` + they happen to
+  share a dependency — `--purge` only removes RateMate's own module path,
+  `github.com/WaZixwx/RateMate`)
+- Anything outside the three bullets above
 
 ---
 
@@ -236,7 +338,10 @@ header comments in [`Makefile`](Makefile).
 RateMate/
 ├── main.go                  # entry: TUI + `serve` subcommand + help
 ├── go.mod / go.sum
-├── Makefile                 # run / build / build-all / test / vet
+├── Makefile                 # run / serve / build / build-all / uninstall ...
+├── scripts/                 # cross-platform run + uninstall helpers
+│   ├── run.sh / run.ps1 / run.cmd      # GOPROXY-scoped `go run .`
+│   └── uninstall.sh / uninstall.ps1   # root-and-branch removal
 ├── LICENSE                  # MIT
 └── internal/
     ├── config/              # JSON persistence (cross-platform home dir)
