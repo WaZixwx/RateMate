@@ -1,0 +1,29 @@
+# Built binaries
+/ratemate
+/ratemate.exe
+/rm
+/rm.exe
+/bin/
+/dist/
+*.exe
+*.test
+
+# Go workspace / build cache pollution
+*.out
+coverage.txt
+
+# OS clutter
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor / IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Local config (per-machine overrides — the default template is fine to ship)
+# Comment this out if you want your personal config version-controlled.
+.ratemate/
