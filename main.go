@@ -56,8 +56,8 @@ func main() {
         }
 }
 
-func osGOOS() string  { return runtime.GOOS }
-func arch() string { return runtime.GOARCH }
+func osGOOS() string { return runtime.GOOS }
+func arch() string   { return runtime.GOARCH }
 
 // runServe runs the proxy headless. It loads the persisted config, starts the
 // proxy and blocks until SIGINT/SIGTERM.
@@ -119,6 +119,7 @@ Inside the TUI:
   s          start / stop the proxy
   m          toggle Auto ↔ Manual mode
   p          pause / resume the limiter (pass-through)
+  l          open the language switcher (zh, en, ja, es, fr, de)
   <-/->      cycle time window (Auto)
   +/-        tune limit (Auto) or delay (Manual)
   up/dn      tune by +-5 (Auto) or +-100ms (Manual)

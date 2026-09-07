@@ -7,10 +7,11 @@ import (
 	"os"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/bubbles/textinput"
+	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/WaZixwx/RateMate/internal/config"
+	"github.com/WaZixwx/RateMate/internal/i18n"
 	"github.com/WaZixwx/RateMate/internal/limiter"
 	"github.com/WaZixwx/RateMate/internal/proxy"
 	"github.com/WaZixwx/RateMate/internal/stats"
@@ -34,6 +35,10 @@ type Model struct {
 	// configuration (persisted)
 	cfg config.File
 
+	// i18n
+	lang i18n.Lang
+	tr   i18n.Strings
+
 	// runtime components
 	lim   *limiter.Limiter
 	proxy *proxy.Server
@@ -45,9 +50,13 @@ type Model struct {
 	height int
 
 	// focus + interaction
-	focus     focus
-	editing   bool
-	showHelp  bool
+	focus    focus
+	editing  bool
+	showHelp bool
+
+	// language switcher menu
+	showLang   bool
+	langCursor int
 
 	// inputs
 	limitInput  textinput.Model
@@ -55,8 +64,8 @@ type Model struct {
 	portInput   textinput.Model
 
 	// transient status line
-	status string
-	err    error
+	status   string
+	err      error
 	statusAt time.Time
 
 	// last fetched snapshots (refreshed on tick)
@@ -80,11 +89,18 @@ func New() Model {
 	logger := log.New(os.Stderr, "[proxy] ", log.LstdFlags|log.Lmsgprefix)
 
 	m := Model{
-		cfg:  cfg,
-		lim:  lim,
+		cfg:   cfg,
+		lim:   lim,
 		stats: tr,
-		log:  logger,
+		log:   logger,
 	}
+
+	// i18n: resolve the persisted language (default English) and load the
+	// matching string set. The cursor starts on the current language so the
+	// switcher opens highlighting the active entry.
+	m.lang = i18n.Normalise(i18n.Lang(cfg.Language))
+	m.tr = i18n.Get(m.lang)
+	m.langCursor = i18n.IndexOf(m.lang)
 
 	m.limitInput = newNumInput(fmt.Sprintf("%d", cfg.Limit))
 	m.manualInput = newNumInput(fmt.Sprintf("%d", cfg.ManualDelayMs))
@@ -150,9 +166,25 @@ func (m *Model) persist() {
 	s := m.lim.Config()
 	m.cfg.FromLimiterConfig(s)
 	m.cfg.Port = portValue(m.portInput.Value())
+	m.cfg.Language = string(m.lang)
 	if err := config.Save(m.cfg); err != nil {
 		m.err = err
 	}
+}
+
+// setLang switches the active language, refreshes the translator, persists
+// the choice and shows a transient confirmation. The language menu cursor is
+// moved to the newly selected language.
+func (m *Model) setLang(l i18n.Lang) {
+	m.lang = i18n.Normalise(l)
+	m.tr = i18n.Get(m.lang)
+	m.langCursor = i18n.IndexOf(m.lang)
+	m.cfg.Language = string(m.lang)
+	if err := config.Save(m.cfg); err != nil {
+		m.err = err
+	}
+	info := i18n.Info(m.lang)
+	m.setStatus(fmt.Sprintf(m.tr.LangChangedFmt, info.Native))
 }
 
 func portValue(s string) int {

@@ -5,9 +5,10 @@ import (
 	"strconv"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/bubbles/textinput"
+	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/WaZixwx/RateMate/internal/i18n"
 	"github.com/WaZixwx/RateMate/internal/limiter"
 	"github.com/WaZixwx/RateMate/internal/proxy"
 )
@@ -15,8 +16,6 @@ import (
 // Update handles all messages: window resize, ticks, key presses, and proxy
 // start/stop results.
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmds []tea.Cmd
-
 	switch msg := msg.(type) {
 
 	case tea.WindowSizeMsg:
@@ -38,18 +37,23 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case proxyResultMsg:
 		if msg.err != nil {
 			m.err = msg.err
-			m.setStatus("✗ failed to start proxy")
+			m.setStatus(m.tr.FailedStart)
 		} else {
 			m.err = nil
 			if m.proxy.Running() {
-				m.setStatus("● proxy started")
+				m.setStatus(m.tr.ProxyStarted)
 			} else {
-				m.setStatus("○ proxy stopped")
+				m.setStatus(m.tr.ProxyStopped)
 			}
 		}
 		return m, nil
 
 	case tea.KeyMsg:
+		// The language switcher menu takes priority over everything else
+		// while open so navigation keys never leak into the dashboard.
+		if m.showLang {
+			return m.handleLangMenu(msg)
+		}
 		// While a text input is being edited, route keys there first except
 		// for Esc / Enter which commit.
 		if m.editing {
@@ -58,7 +62,52 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.handleKey(msg)
 	}
 
-	return m, tea.Batch(cmds...)
+	return m, nil
+}
+
+// handleLangMenu handles keys while the language switcher overlay is open.
+//
+//	↑/↓ or k/j   move the cursor
+//	1..6         jump to language N (Chinese is 1)
+//	enter        apply the highlighted language and close
+//	l or esc     close the menu without changing the language
+//	q            close the menu (does not quit while the menu is open)
+func (m Model) handleLangMenu(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	n := len(i18n.Languages)
+	switch msg.String() {
+	case "esc", "l", "q":
+		m.showLang = false
+		return m, nil
+	case "enter":
+		info := i18n.Languages[m.langCursor]
+		m.setLang(info.Code)
+		m.showLang = false
+		return m, nil
+	case "up", "k":
+		m.langCursor = (m.langCursor - 1 + n) % n
+		return m, nil
+	case "down", "j":
+		m.langCursor = (m.langCursor + 1) % n
+		return m, nil
+	case "home", "g":
+		m.langCursor = 0
+		return m, nil
+	case "end", "G":
+		m.langCursor = n - 1
+		return m, nil
+	case "ctrl+c":
+		return m, tea.Quit
+	}
+	// Number keys 1..len jump to the Nth language (1-indexed, Chinese = 1).
+	if k := msg.String(); len(k) == 1 && k[0] >= '1' && k[0] <= '6' {
+		idx := int(k[0] - '1')
+		if idx < n {
+			m.langCursor = idx
+		}
+		return m, nil
+	}
+	// Unknown key: ignore so the menu stays put.
+	return m, nil
 }
 
 // handleEditing routes keystrokes to the active text input until Enter / Esc.
@@ -95,22 +144,22 @@ func (m *Model) commitEdit() {
 	case focusLimit:
 		if n, err := strconv.Atoi(m.limitInput.Value()); err == nil {
 			m.lim.SetLimit(n)
-			m.setStatus(fmt.Sprintf("limit → %d", n))
+			m.setStatus(fmt.Sprintf(m.tr.LimitSetFmt, n))
 		}
 	case focusManual:
 		if n, err := strconv.Atoi(m.manualInput.Value()); err == nil {
 			m.lim.SetManualDelay(n)
-			m.setStatus(fmt.Sprintf("manual delay → %d ms", n))
+			m.setStatus(fmt.Sprintf(m.tr.ManualDelaySetFmt, n))
 		}
 	case focusPort:
 		if m.proxy.Running() {
-			m.setStatus("stop proxy to change port")
+			m.setStatus(m.tr.StopProxyToChangePort)
 			return
 		}
 		p := portValue(m.portInput.Value())
 		m.proxy.SetAddr(proxy.ParseAddr(p))
 		m.portInput.SetValue(fmt.Sprintf("%d", p))
-		m.setStatus(fmt.Sprintf("port → %d", p))
+		m.setStatus(fmt.Sprintf(m.tr.PortSetFmt, p))
 	}
 	m.persist()
 }
@@ -149,33 +198,42 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		paused := !m.lim.Paused()
 		m.lim.SetPaused(paused)
 		if paused {
-			m.setStatus("⏸ limiter paused (pass-through)")
+			m.setStatus(m.tr.PausedMsg)
 		} else {
-			m.setStatus("▶ limiter resumed")
+			m.setStatus(m.tr.ResumedMsg)
 		}
 		return m, nil
 
 	case "m":
 		if m.lim.Snapshot().Mode == limiter.ModeAuto {
 			m.lim.SetMode(limiter.ModeManual)
-			m.setStatus("mode → Manual")
+			m.setStatus(m.tr.ModeManualSet)
 		} else {
 			m.lim.SetMode(limiter.ModeAuto)
-			m.setStatus("mode → Auto")
+			m.setStatus(m.tr.ModeAutoSet)
 		}
 		m.persist()
+		return m, nil
+
+	case "l":
+		// Toggle the language switcher. The cursor starts on the current
+		// language so the user can confirm it immediately with <enter>.
+		m.showLang = !m.showLang
+		if m.showLang {
+			m.langCursor = i18n.IndexOf(m.lang)
+		}
 		return m, nil
 
 	case "r":
 		m.lim.Reset()
 		m.stats.Reset()
-		m.setStatus("stats reset")
+		m.setStatus(m.tr.StatsReset)
 		return m, nil
 
 	case "c":
 		m.stats.Reset()
 		m.recent = nil
-		m.setStatus("activity log cleared")
+		m.setStatus(m.tr.ActivityCleared)
 		return m, nil
 
 	case "?":
@@ -188,7 +246,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			c := m.lim.Config()
 			c.Window = (c.Window + 2) % 3 // previous
 			m.lim.SetWindow(c.Window)
-			m.setStatus(fmt.Sprintf("window → %s", c.Window.String()))
+			m.setStatus(fmt.Sprintf(m.tr.WindowSetFmt, m.tr.WindowName(int(c.Window))))
 			m.persist()
 		}
 		return m, nil
@@ -197,7 +255,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			c := m.lim.Config()
 			c.Window = (c.Window + 1) % 3 // next
 			m.lim.SetWindow(c.Window)
-			m.setStatus(fmt.Sprintf("window → %s", c.Window.String()))
+			m.setStatus(fmt.Sprintf(m.tr.WindowSetFmt, m.tr.WindowName(int(c.Window))))
 			m.persist()
 		}
 		return m, nil
@@ -221,7 +279,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			c := m.lim.Config()
 			c.Window = (c.Window + 1) % 3
 			m.lim.SetWindow(c.Window)
-			m.setStatus(fmt.Sprintf("window → %s", c.Window.String()))
+			m.setStatus(fmt.Sprintf(m.tr.WindowSetFmt, m.tr.WindowName(int(c.Window))))
 			m.persist()
 			return m, nil
 		}
@@ -256,7 +314,7 @@ func (m *Model) adjustLimit(delta int) {
 		}
 		m.lim.SetManualDelay(v)
 		m.manualInput.SetValue(fmt.Sprintf("%d", v))
-		m.setStatus(fmt.Sprintf("manual delay → %d ms", v))
+		m.setStatus(fmt.Sprintf(m.tr.ManualDelaySetFmt, v))
 	} else {
 		c := m.lim.Config()
 		v := c.Limit + delta
@@ -265,7 +323,7 @@ func (m *Model) adjustLimit(delta int) {
 		}
 		m.lim.SetLimit(v)
 		m.limitInput.SetValue(fmt.Sprintf("%d", v))
-		m.setStatus(fmt.Sprintf("limit → %d", v))
+		m.setStatus(fmt.Sprintf(m.tr.LimitSetFmt, v))
 	}
 	m.persist()
 }

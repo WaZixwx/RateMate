@@ -167,6 +167,7 @@ Delay:   1000   ms per request
 | `s`          | start / stop the proxy                         |
 | `m`          | toggle Auto ↔ Manual mode                     |
 | `p`          | pause / resume the limiter (pass-through)     |
+| `l`          | open the language switcher (6 languages)       |
 | `◀` `▶`      | cycle the time window (Auto)                  |
 | `+` `-`      | tune limit (Auto) or delay (Manual)           |
 | `↑` `↓`      | tune by ±5 (Auto) or ±100 ms (Manual)         |
@@ -176,6 +177,26 @@ Delay:   1000   ms per request
 | `c`          | clear the activity log only                    |
 | `?`          | toggle the help overlay                        |
 | `q` / `esc`  | quit (stops the proxy first if running)        |
+
+---
+
+## Languages
+
+RateMate's TUI speaks six languages. **English is the default**; **中文
+(Chinese) is listed first** in the switcher, followed by the other four.
+
+| Code | Language  | Native    |
+|------|-----------|-----------|
+| `zh` | Chinese   | 中文      |
+| `en` | English   | English   |
+| `ja` | Japanese  | 日本語    |
+| `es` | Spanish   | Español   |
+| `fr` | French    | Français  |
+| `de` | German    | Deutsch   |
+
+A prominent **🌐 `<current> ▾`** button in the title bar opens the switcher.
+Press **`l`** to open it, **↑/↓** to move, **enter** to apply, **esc** to
+cancel. The choice is persisted to `language` in the config file.
 
 ---
 
@@ -207,7 +228,8 @@ change; the headless mode reads it on start.
   "manual_delay_ms": 1000,
   "port": 8080,
   "autostart": false,
-  "log_body_bytes": false
+  "log_body_bytes": false,
+  "language": "en"
 }
 ```
 
@@ -345,6 +367,7 @@ RateMate/
 ├── LICENSE                  # MIT
 └── internal/
     ├── config/              # JSON persistence (cross-platform home dir)
+    ├── i18n/                # 6-language string tables (zh, en, ja, es, fr, de)
     ├── limiter/             # rate-limit / delay core (auto + manual)
     ├── proxy/               # HTTP/HTTPS forward proxy with delay injection
     ├── stats/               # bounded activity ring buffer + aggregates

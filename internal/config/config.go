@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/WaZixwx/RateMate/internal/i18n"
 	"github.com/WaZixwx/RateMate/internal/limiter"
 )
 
@@ -17,10 +18,11 @@ type File struct {
 	Mode          string `json:"mode"`            // "auto" | "manual"
 	Window        string `json:"window"`          // "second" | "minute" | "hour"
 	Limit         int    `json:"limit"`           // requests per window (auto)
-	ManualDelayMs int    `json:"manual_delay_ms"`  // ms (manual)
+	ManualDelayMs int    `json:"manual_delay_ms"` // ms (manual)
 	Port          int    `json:"port"`            // proxy listen port
 	AutoStart     bool   `json:"autostart"`       // start proxy on launch
-	LogBodyBytes   bool   `json:"log_body_bytes"`  // (reserved) log body sizes
+	LogBodyBytes  bool   `json:"log_body_bytes"`  // (reserved) log body sizes
+	Language      string `json:"language"`        // UI language code (e.g. "en","zh")
 }
 
 // Default returns a sensible starting configuration.
@@ -32,6 +34,7 @@ func Default() File {
 		ManualDelayMs: 1000,
 		Port:          8080,
 		AutoStart:     false,
+		Language:      string(i18n.Default),
 	}
 }
 
@@ -117,6 +120,7 @@ func Load() File {
 	if f.ManualDelayMs < 0 {
 		f.ManualDelayMs = 0
 	}
+	f.Language = string(i18n.Normalise(i18n.Lang(f.Language)))
 	return f
 }
 

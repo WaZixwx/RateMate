@@ -3,13 +3,13 @@
 // Two operating modes:
 //
 //   - Auto:   the user supplies a time window (second/minute/hour) and a
-//             maximum number of requests allowed within that window. The
-//             limiter computes the inter-request spacing delay as
-//             window / limit and enforces even spacing between successive
-//             forwarded requests.
+//     maximum number of requests allowed within that window. The
+//     limiter computes the inter-request spacing delay as
+//     window / limit and enforces even spacing between successive
+//     forwarded requests.
 //
 //   - Manual: the user supplies a fixed delay (ms) applied before every
-//             request is forwarded.
+//     request is forwarded.
 //
 // The limiter is safe for concurrent use.
 package limiter
@@ -100,9 +100,9 @@ func (w Window) Milliseconds() int64 {
 type Config struct {
 	Mode          Mode
 	Window        Window
-	Limit         int    // requests per window (Auto)
-	ManualDelayMs int    // delay per request (Manual)
-	Burst         int    // allowed burst (default 1) — kept >0 to keep semantics simple
+	Limit         int // requests per window (Auto)
+	ManualDelayMs int // delay per request (Manual)
+	Burst         int // allowed burst (default 1) — kept >0 to keep semantics simple
 }
 
 // Limiter enforces the configured delay between forwarded requests.
@@ -120,10 +120,10 @@ type Limiter struct {
 
 	// live counters, readable via Snapshot
 	totalRequests int64
-	delayedCount   int64
-	passThrough    int64
-	totalWaitedMs  int64
-	lastRequestAt  time.Time
+	delayedCount  int64
+	passThrough   int64
+	totalWaitedMs int64
+	lastRequestAt time.Time
 
 	// paused disables delaying entirely (requests pass straight through).
 	paused bool
